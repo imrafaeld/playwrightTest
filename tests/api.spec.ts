@@ -1,74 +1,115 @@
 import { test, expect, request } from '@playwright/test';
 
-const KANKOLEK_URL = 'https://dev-api.peddlr.io/v5/kankolek/mobile';
+const apiKey = 'reqres-free-v1';
+let userId;
 
-async function getToken() {
-    const context = await request.newContext({
-        extraHTTPHeaders: {
-            'X-Amz-Target': 'AWSCognitoIdentityProviderService.InitiateAuth',
-            'Content-Type': 'application/x-amz-json-1.1',
-        }
-    });
-
-    const body = {
-        'AuthParameters': {
-            'USERNAME': '+639173069996',
-            'PASSWORD': '@Rafaeld96'
-        },
-        'AuthFlow': 'USER_PASSWORD_AUTH',
-        'ClientId': '76gt8ham9fb3cjleilqq3nuiep',
-    }
-
-    const response = await context.post('https://cognito-idp.ap-southeast-1.amazonaws.com/', {
-        data: body,
-    });
-
-    expect(response.status()).toEqual(200);
-    
-    const value = await response.json();
-    const token = 'Bearer ' + value.AuthenticationResult?.IdToken;
-
-    return token;
-}
-
-test.describe('API Test Suite', () => {
-    test.only('GET', { tag: '@getapi' }, async ({ page }) => {
-        const token = await getToken();
-
-        const response = await page.request.get('https://dev-api.peddlr.io/v5/mobile/digital-products/eload/payment-method/list-v2', {
-            headers: {
-                'Authorization': token,
-            }
+test.describe('Resreq API Test Suite', { tag: '@resreq' }, () => {
+    test('GET user list with params', async ({ request }) => {
+        const response = await request.get('https://reqres.in/api/users', {
+            params: { "page": "2", },
+            headers: { 'x-api-key': apiKey, }
         });
 
-        expect(response.status()).toEqual(200);
-
-        const results = await response.json();
-        const paymentMethods = results.message?.paymentMethods;
-        const names = paymentMethods.filter((m: any) => m.rateType === 'mdr').map((m: any) => m.name);
-        console.log('---FULL RESPONSE---');
-        console.log(names);
-        // console.log(paymentMethods);
-        // console.log(JSON.stringify(result));
+        const res = await response.json();
+        console.log(res);
+        expect(response.status()).toBeTruthy();
     });
 
-    test('POST', { tag: '@postapi' }, async ({ page }) => {
-        const token = await getToken();
-
-        const response = await page.request.post(KANKOLEK_URL + '/peddlr-wallet/transaction/details', {
-            headers: {
-                'Authorization': token,
+    test('POST create user', async ({ request }) => {
+        const response = await request.post('https://reqres.in/api/users', {
+            headers: 
+            { 'x-api-key': apiKey, },
+            data: 
+            {
+                "name": "testname",
+                "job": "job quality engineer",
             },
-            data: {
-                'transactionId': '8358060',
+        });
+
+        const res = await response.json();
+        console.log(res);
+        userId = res.id;
+        console.log(userId);
+
+        expect(response.status()).toBe(201);
+        expect(res).toHaveProperty('createdAt');
+    });
+
+    test('GET single user', async ({ request }) => {
+        const response = await request.get('https://reqres.in/api/users' + userId, {
+            headers: { 'x-api-key': apiKey, }
+        });
+
+        const res = await response.json();
+        console.log(res);
+        expect(response.status()).toBe(200);
+        expect(res).toHaveProperty(['data', 'support']);
+    });
+
+    test('PUT update user', async ({ request }) => {
+        const response = await request.put('https://reqres.in/api/users/' + userId, {
+            headers: 
+            { 'x-api-key': apiKey, },
+            data: 
+            {
+                "name": "nikleafarupdate",
+                "job": "job update qa engineer",
+            },
+        });
+
+        const res = await response.json();
+        console.log(res);
+        expect(response.status()).toBe(200);
+        expect(res).toHaveProperty('updatedAt');
+    });
+
+    test('PATCH update user name only', async ({ request }) => {
+        const response = await request.patch('https://reqres.in/api/users/' + userId, {
+            headers:
+            { 'x-api-key': apiKey },
+            data: 
+            {
+                "name": "nik leafar patch update",
             }
         });
 
-        expect(response.status()).toEqual(200);
+        const res = await response.json();
+        console.log(res);
+        expect(response.status()).toBe(200);
+        expect(res).toHaveProperty('updatedAt');
+    });
 
-        const result = await response.json();
-        const datas = result.message?.transactionDetails;
-        console.log(datas);
-        // const value = datas.map((m: any) => m.transactionId);
+    test('DELETE created user', async ({ request }) => {
+        const response = await request.delete('https://reqres.in/api/users/' + userId, {
+            headers: { 'x-api-key': apiKey }
+        });
+
+        expect(response.status()).toBe(204);
+    });
+
+    test('GET uknown user 404 not found', async ({ request }) => {
+        const response = await request.get('https://reqres.in/api/users/99', {
+            headers:
+            { 'x-api-key': apiKey }
+        });
+
+        expect(response.status()).toBe(404);
+    });
+
+    test('POST register unsuccessful 400 error', async ({ request }) => {
+        const response = await request.post('https://reqres.in/api/register', {
+            headers:
+            { 'x-api-key': apiKey },
+            data:
+            {
+               'email': 'kin@g.c'
+            }
+        });
+
+        const res = await response.json();
+        console.log(res);
+        expect(response.status()).toBe(400);
+        expect(res).toHaveProperty('error');
+        expect(res.error).toEqual('Missing password');
     });
 });
